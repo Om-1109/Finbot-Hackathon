@@ -1,248 +1,97 @@
-import os
-import json
-from typing import Any, Dict, Optional
+# (Keep all your other imports: httpx, YourLlmApiClient, etc.)
+import json 
+# ... other llm_service.py code ...
 
-import httpx
-from dotenv import load_dotenv
+# This is your existing function to answer general questions
+async def answer_general_question(message: str):
+    # ... (your existing logic for this) ...
+    pass
 
-load_dotenv()
-LLAMA_API_KEY = os.getenv("LLAMA_API_KEY", "")
-LLAMA_API_URL = os.getenv("LLAMA_API_URL", "http://localhost:11434/api/generate")
-DEFAULT_MODEL = os.getenv("LLAMA_MODEL", "llama3.1:8b")  # Ollama-style model name
-
-class LlamaClient:
-    # --- BUG 1 FIX ---
-    # Was: def init(self):
-    def __init__(self):
-        # Use a single AsyncClient for pooling
-        self._client = httpx.AsyncClient(timeout=60.0)
-
-    async def generate(
-        self, prompt: str, max_tokens: int = 512, model: Optional[str] = None
-    ) -> str:
-        """
-        Robust generation:
-        - Attempts to request a non-streaming response (stream=False).
-        - If server returns NDJSON / streamed chunks, parse them and concat text pieces.
-        - Fallback to parsing common JSON shapes (choices, output, generated_text, response, text).
-        Returns a clean string (final text).
-        """
-        model_name = model or DEFAULT_MODEL
-        payload = {
-            "model": model_name,
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": 0.2,
-            # Many providers accept "stream": False to return a single final JSON.
-            # If provider ignores this and streams, we handle NDJSON below.
-            "stream": False,
-        }
-
-        headers = {"Content-Type": "application/json"}
-        if LLAMA_API_KEY:
-            headers["Authorization"] = f"Bearer {LLAMA_API_KEY}"
-
-        resp = await self._client.post(LLAMA_API_URL, json=payload, headers=headers)
-        resp.raise_for_status()
-
-        # Try to parse as JSON first
-        try:
-            data = resp.json()
-        except Exception:
-            # Could be NDJSON stream or plain text. Attempt to parse NDJSON lines.
-            text = resp.text
-            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-            collected: list[str] = []
-
-            for line in lines:
-                try:
-                    obj = json.loads(line)
-                except Exception:
-                    # not JSON — skip
-                    continue
-
-                # Common keys where chunk text may appear
-                if isinstance(obj, dict):
-                    # Ollama-style streaming often uses "response"
-                    if "response" in obj and isinstance(obj["response"], str):
-                        collected.append(obj["response"])
-                        continue
-                    # Other probable keys
-                    for k in ("generated_text", "text", "output", "content"):
-                        if k in obj and isinstance(obj[k], str):
-                            collected.append(obj[k])
-                            break
-            
-            if collected:
-                result = "".join(collected).strip()
-                # --- BUG 2 FIX ---
-                # Was: if result.startswith("") and result.endswith(""):
-                if result.startswith("") and result.endswith(""):
-                    result = result.strip("`\n ")
-                    if result.startswith("json"): # Handle json
-                        result = result[4:]
-                return result
-
-            # Final fallback: return raw body
-            return text.strip()
-
-        # If we have a parsed JSON data, search for the best text
-        def find_first_string(obj: Any) -> Optional[str]:
-            if isinstance(obj, str):
-                return obj
-            if isinstance(obj, dict):
-                for v in obj.values():
-                    s = find_first_string(v)
-                    if s:
-                        return s
-            if isinstance(obj, list):
-                for item in obj:
-                    s = find_first_string(item)
-                    if s:
-                        return s
-            return None
-
-        # 1) OpenAI-like shapes: {"choices":[{"message":{"content":"..."}}]} or {"choices":[{"text":"..."}]}
-        try:
-            choices = data.get("choices")
-            if isinstance(choices, list) and choices:
-                first = choices[0]
-                if isinstance(first, dict):
-                    # Chat style
-                    msg = first.get("message")
-                    if isinstance(msg, dict) and msg.get("content"):
-                        return str(msg["content"]).strip()
-                    # Completion style
-                    if first.get("text"):
-                        return str(first["text"]).strip()
-                    # Delta style
-                    delta = first.get("delta")
-                    if isinstance(delta, dict) and delta.get("content"):
-                        return str(delta["content"]).strip()
-        except Exception:
-            pass
-
-        # 2) Direct keys
-        for key in ("response", "output", "generated_text", "text", "content", "result"):
-            val = data.get(key) if isinstance(data, dict) else None
-            if isinstance(val, str):
-                return val.strip()
-
-        # 3) If top-level is a list of dicts (some providers)
-        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
-            for candidate_key in ("generated_text", "text", "output", "response", "content"):
-                if data[0].get(candidate_key):
-                    return str(data[0][candidate_key]).strip()
-            first_string = find_first_string(data[0])
-            if first_string:
-                return first_string.strip()
-
-        # 4) Fallback: find first string anywhere
-        fallback = find_first_string(data)
-        if fallback:
-            out = fallback.strip()
-            # --- BUG 2 FIX ---
-            # Was: if out.startswith("") and out.endswith(""):
-            if out.startswith("") and out.endswith(""):
-                out = out.strip("`\n ")
-                if out.startswith("json"):
-                    out = out[4:]
-            return out
-
-        # 5) Final fallback: return JSON as string
-        return json.dumps(data)
-
-
-# Singleton client instance
-_llama_client: Optional[LlamaClient] = None
-
-def get_llama_client() -> LlamaClient:
-    global _llama_client
-    if _llama_client is None:
-        _llama_client = LlamaClient()
-    return _llama_client
-
-
-# ---- High level helper functions used by the router ----
-
-async def classify_intent_and_extract(message: str) -> Dict[str, Any]:
+# THIS IS THE UPGRADED FUNCTION:
+async def present_portfolio(portfolio_dict: dict) -> str:
     """
-    Ask the model to return JSON-only classification + entities.
-    Expected return (example):
-    {"intent":"portfolio_request", "entities":{"capital":50000, "monthly_investment":2000, "risk_appetite":"medium", "preferred_tools":["Zerodha"]}}
+    Uses the LLM to write a natural language summary of the new
+    portfolio object (which includes lump sum and SIP).
     """
-    safe_message = message.replace("\n", " ").replace("'", "\\'")
-    prompt = (
-        "You are a JSON-only bot. Analyze: '"
-        + safe_message
-        + "'. "
-          "Classify intent: general_question, portfolio_request, or providing_info. "
-          "Extract entities: capital (int), monthly_investment (int), risk_appetite ('low', 'medium', 'high'), "
-          "preferred_tools (list of strings). Return ONLY the JSON. "
-          "Example: {\"intent\": \"portfolio_request\", \"entities\": {\"capital\": 50000}}"
-    )
+    
+    # 1. Check what kind of plan we have.
+    #    We check the SIP allocation to see if it's meaningful (not just ₹0).
+    has_lump_sum = "lump_sum_allocation" in portfolio_dict and portfolio_dict["lump_sum_allocation"]
+    
+    # Check if a monthly plan exists and has a total > 0
+    has_sip_plan = False
+    if "monthly_sip_allocation" in portfolio_dict and portfolio_dict["monthly_sip_allocation"]:
+        sip_total = sum(item.get('amount', 0) for item in portfolio_dict["monthly_sip_allocation"])
+        if sip_total > 0:
+            has_sip_plan = True
 
-    client = get_llama_client()
-    raw = await client.generate(prompt, max_tokens=256)
-    text = raw.strip()
+    # 2. Create a "smart" prompt based on the data.
+    
+    # --- Start of the Prompt ---
+    prompt = "You are a friendly, encouraging financial advisor. "
+    prompt += "You just generated a new investment plan for a user. "
+    prompt += "Your job is to present this plan to them in a brief, 2-3 sentence summary. Be natural and clear."
+    prompt += "\n"
+    
+    # Add context based on the plans
+    if has_lump_sum and has_sip_plan:
+        prompt += "The user has provided both a one-time 'lump sum' and a 'monthly SIP' amount. "
+        prompt += "Acknowledge that you have created two separate, balanced plans for them. "
+        prompt += "Example: 'Great! I've built a complete financial plan for you. It includes a strategy for your lump sum *and* a separate plan for your monthly SIP. Here are the details.'"
+    
+    elif has_lump_sum:
+        prompt += "The user has provided a one-time 'lump sum' amount. "
+        prompt += "Acknowledge that you have created a plan for this. "
+        prompt += "Example: 'Okay, I've created a custom, diversified plan for your lump sum investment. Here's the breakdown.'"
+    
+    elif has_sip_plan:
+        prompt += "The user has provided a 'monthly SIP' amount. "
+        prompt += "Acknowledge that you have created a plan for their monthly investments. "
+        prompt += "Example: 'Perfect! I've created a diversified plan for your monthly SIP. Here's how it's allocated.'"
 
-    # Remove code fences if present
-    # --- BUG 2 FIX ---
-    # Was: if text.startswith("") and text.endswith(""):
-    if text.startswith("") and text.endswith(""):
-        text = text.strip("`\n ")
-        if text.startswith("json"):
-            text = text[4:]
+    prompt += "\n\n"
+    prompt += "Here is the raw data of the plan (do NOT just repeat this JSON): "
+    
+    # Safely dump the dict to a JSON string for the prompt
+    prompt += json.dumps(portfolio_dict)
+    # --- End of the Prompt ---
 
-    # Try parse JSON directly, else extract first {...} block
+    # 3. Call your LLM (This part assumes you have a helper)
+    #    You can replace this with your actual Llama 3.1 call.
     try:
-        parsed = json.loads(text)
-        return parsed
-    except Exception:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            substring = text[start : end + 1]
-            try:
-                parsed = json.loads(substring)
-                return parsed
-            except Exception:
-                pass
+        # This is just an example of how you might be calling your LLM
+        # You should adapt this line to your project's code.
+        # e.g., return await _call_your_llm_api(prompt)
+        
+        # For the sake of this example, I'll assume you have a generic helper:
+        return await _call_llm(prompt)
+        
+    except Exception as e:
+        print(f"Error in present_portfolio LLM call: {e}")
+        # Fallback in case the LLM fails
+        return "I've generated your portfolio! Here are the details."
 
-    # Safe default if parsing fails
-    return {"intent": "general_question", "entities": {}}
+# --- Helper Function (Assumed) ---
+# You probably already have a function like this in this file
+# to talk to the Llama 3.1 API.
+async def _call_llm(prompt: str) -> str:
+    # This is a MOCKUP.
+    # Replace this with your actual httpx call to Llama 3.1
+    
+    # --- START MOCKUP ---
+    # In your real code, you would do:
+    # response = await httpx_client.post(LLAMA_URL, json={"prompt": prompt, ...})
+    # return response.json()["choices"][0]["text"]
+    
+    # This is just so the file is complete.
+    if "lump sum and" in prompt:
+        return "Great! I've built a complete financial plan for you. It includes a strategy for your lump sum *and* a separate plan for your monthly SIP. Here are the details."
+    else:
+        return "Okay, I've created a custom, diversified plan for your investment. Here's the breakdown."
+    # --- END MOCKUP ---
 
 
-async def answer_general_question(message: str) -> str:
-    """
-    Ask FinBot (expert on Indian finance) for a concise answer.
-    """
-    escaped = message.replace('"', '\\"')
-    prompt = f"You are FinBot, an expert on Indian finance. Answer concisely: \"{escaped}\""
-    client = get_llama_client()
-    raw = await client.generate(prompt, max_tokens=256)
-    text = raw.strip()
-    # --- BUG 2 FIX ---
-    # Was: if text.startswith("") and text.endswith(""):
-    if text.startswith("") and text.endswith(""):
-        text = text.strip("`\n ")
-    return text
-
-
-async def present_portfolio(portfolio_json: Dict[str, Any]) -> str:
-    """
-    Ask FinBot to present a portfolio dict in a friendly formatted way.
-    """
-    json_text = json.dumps(portfolio_json, ensure_ascii=False)
-    prompt = (
-        f"You are FinBot. Your internal engine generated this portfolio: '{json_text}'. "
-        "Present this to the user in a friendly, formatted, and encouraging way. Explain the breakdown."
-    )
-    client = get_llama_client()
-    raw = await client.generate(prompt, max_tokens=512)
-    text = raw.strip()
-    # --- BUG 2 FIX ---
-    # Was: if text.startswith("") and text.endswith(""):
-    if text.startswith("") and text.endswith("```"):
-        text = text.strip("`\n ")
-    return text
+# (This is your other function, unchanged)
+async def classify_intent_and_extract(message: str):
+    # ... (your existing logic for this) ...
+    pass

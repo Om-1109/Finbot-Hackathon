@@ -1,210 +1,148 @@
 import React, { useState } from 'react';
-import styled from '@emotion/styled';
-import { motion, AnimatePresence } from 'framer-motion';
-import { theme } from '../theme';
-import { AllocationPieChart } from './AllocationPieChart'; // Import our new chart
+import AllocationPieChart from './AllocationPieChart';
 
-// --- Styled Components (Phase 5 Upgrade) ---
+// --- Styles (you can move this to your App.css) ---
+const styles = {
+  tabButtons: {
+    display: 'flex',
+    borderBottom: '1px solid #ddd',
+    marginBottom: '20px',
+  },
+  tabButton: {
+    padding: '10px 20px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#888',
+    borderBottom: '3px solid transparent',
+  },
+  tabButtonActive: {
+    color: '#007bff',
+    borderBottom: '3px solid #007bff',
+  },
+  planTitle: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: '15px',
+  },
+  chartContainer: {
+    height: '300px',
+    marginBottom: '20px',
+  },
+  allocationList: {
+    listStyle: 'none',
+    padding: 0,
+  },
+  allocationItem: {
+    background: '#f9f9f9',
+    border: '1px solid #eee',
+    borderRadius: '8px',
+    padding: '15px',
+    marginBottom: '10px',
+  },
+  itemHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '18px',
+    fontWeight: '600',
+  },
+  itemAsset: {
+    color: '#333',
+  },
+  itemAmount: {
+    color: '#28a745',
+  },
+  itemRecs: {
+    marginTop: '10px',
+    paddingLeft: '15px',
+    borderLeft: '2px solid #007bff',
+  },
+  itemRecsTitle: {
+    margin: '0 0 5px 0',
+    fontSize: '14px',
+    color: '#555',
+    fontWeight: '700',
+  },
+  itemRecsText: {
+    margin: '0 0 5px 0',
+    fontSize: '13px',
+    color: '#666',
+  },
+};
+// --- End of Styles ---
 
-const PortfolioContainer = styled(motion.div)`
-  width: 100%;
-  padding: 1.5rem;
-  border-radius: 1.5rem;
-  background: ${theme.colors.botBubble};
-  border: 1px solid ${theme.colors.border};
-  color: ${theme.colors.text};
-  margin-bottom: 1rem;
-`;
+// Helper to format currency
+const formatCurrency = (num) => `₹${num.toLocaleString('en-IN')}`;
 
-const Title = styled.h2`
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: ${theme.colors.textHeadline};
-  text-align: center;
-  margin-bottom: 1.5rem;
-`;
+export default function PortfolioDisplay({ portfolioData }) {
+  // portfolioData is the full PortfolioResponse object
+  const { 
+    lump_sum_allocation, 
+    monthly_sip_allocation 
+  } = portfolioData;
 
-const SummaryCardContainer = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-`;
+  const [activeTab, setActiveTab] = useState('lump_sum');
 
-// Use motion.div to get hover animations
-const SummaryCard = styled(motion.div)`
-  background: ${theme.colors.surface};
-  border: 1px solid ${theme.colors.border};
-  border-radius: 1rem;
-  padding: 1rem;
-  text-align: center;
-  
-  h4 {
-    margin: 0;
-    font-size: 0.9rem;
-    color: ${theme.colors.textSecondary};
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  p {
-    margin: 0.25rem 0 0 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: ${props => props.accent ? theme.colors.primary : theme.colors.text};
-  }
-`;
+  // Check if we have a valid SIP plan to show
+  const hasSipPlan = monthly_sip_allocation && monthly_sip_allocation.length > 0;
 
-const AccordionContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-`;
-
-const AccordionHeader = styled(motion.button)`
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.25rem;
-  border-radius: 0.75rem;
-  background: ${theme.colors.surface};
-  border: 1px solid ${theme.colors.border};
-  color: ${theme.colors.textHeadline};
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  
-  span:last-of-type {
-    font-weight: 400;
-    color: ${theme.colors.textSecondary};
-  }
-`;
-
-const AccordionContent = styled(motion.div)`
-  overflow: hidden; // Critical for height animation
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 0 0.5rem;
-`;
-
-// The individual stock/fund cards
-const RecommendationCard = styled(motion.div)`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  background: ${theme.colors.botBubble};
-  border: 1px solid ${theme.colors.border};
-  
-  div {
-    h5 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-      color: ${theme.colors.text};
-    }
-    p {
-      margin: 0;
-      font-size: 0.9rem;
-      color: ${theme.colors.textSecondary};
-    }
-  }
-  
-  span {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: ${theme.colors.primary};
-  }
-`;
-
-// --- Component ---
-
-export const PortfolioDisplay = ({ text, data }) => {
-  // State to manage which accordion is open
-  const [openAccordion, setOpenAccordion] = useState(data.allocation[0].type);
-
-  // Card hover animation from your prompt
-  const cardHover = {
-    y: -5,
-    boxShadow: theme.shadows.medium,
-  };
+  // Determine which data to show
+  const isLumpSum = activeTab === 'lump_sum';
+  const dataToShow = isLumpSum ? lump_sum_allocation : monthly_sip_allocation;
+  const title = isLumpSum ? 'Lump Sum Investment Plan' : 'Monthly SIP Plan';
+  const currencySuffix = isLumpSum ? '' : '/month';
 
   return (
-    <PortfolioContainer
-      // Entrance animation
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-    >
-      <Title>{text}</Title>
-      
-      {/* --- Summary Cards --- */}
-      <SummaryCardContainer>
-        <SummaryCard whileHover={cardHover} accent>
-          <h4>Return Est.</h4>
-          <p>{data.projected_return_estimate}</p>
-        </SummaryCard>
-        <SummaryCard whileHover={cardHover}>
-          <h4>Risk Profile</h4>
-          <p>{data.risk_profile}</p>
-        </SummaryCard>
-      </SummaryCardContainer>
-      
-      {/* --- Allocation Chart --- */}
-      <AllocationPieChart 
-        allocationData={data.allocation} 
-        projectedReturn={data.projected_return_estimate}
-      />
-      
-      {/* --- Detailed Breakdown Accordion --- */}
-      <AccordionContainer>
-        {data.allocation.map((item) => {
-          const isOpen = openAccordion === item.type;
-          return (
-            <div key={item.type}>
-              <AccordionHeader
-                onClick={() => setOpenAccordion(isOpen ? null : item.type)}
-              >
-                <span>{item.type}</span>
-                <span>{item.percentage}%</span>
-              </AccordionHeader>
-              
-              <AnimatePresence>
-                {isOpen && (
-                  <AccordionContent
-                    // Smooth expand/collapse animation
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  >
-                    {item.recommendations.map((rec) => (
-                      <RecommendationCard
-                        key={rec.symbol}
-                        whileHover={{ 
-                          ...cardHover, 
-                          borderColor: theme.colors.primary 
-                        }}
-                      >
-                        <div>
-                          <h5>{rec.name} ({rec.symbol})</h5>
-                          <p>{rec.description}</p>
-                        </div>
-                        <span>{rec.weight}%</span>
-                      </RecommendationCard>
-                    ))}
-                  </AccordionContent>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
-      </AccordionContainer>
-    </PortfolioContainer>
-  );
-};
+    <div style={{ width: '100%' }}>
+      <div style={styles.tabButtons}>
+        <button
+          style={{ ...styles.tabButton, ...(isLumpSum ? styles.tabButtonActive : {}) }}
+          onClick={() => setActiveTab('lump_sum')}
+        >
+          Lump Sum Plan
+        </button>
+        {hasSipPlan && (
+          <button
+            style={{ ...styles.tabButton, ...(!isLumpSum ? styles.tabButtonActive : {}) }}
+            onClick={() => setActiveTab('monthly_sip')}
+          >
+            Monthly SIP Plan
+          </button>
+        )}
+      </div>
 
+      <div className="tab-content">
+        <h3 style={styles.planTitle}>{title}</h3>
+        
+        <div style={styles.chartContainer}>
+          <AllocationPieChart allocationData={dataToShow} />
+        </div>
+        
+        <ul style={styles.allocationList}>
+          {dataToShow.map((item) => (
+            <li key={item.asset_class} style={styles.allocationItem}>
+              <div style={styles.itemHeader}>
+                <span style={styles.itemAsset}>{item.asset_class} ({(item.percentage * 100).toFixed(0)}%)</span>
+                <span style={styles.itemAmount}>
+                  {formatCurrency(item.amount)}{currencySuffix}
+                </span>
+              </div>
+              <div style={styles.itemRecs}>
+                <h5 style={styles.itemRecsTitle}>Top Recommendations:</h5>
+                {item.recommendations.map(rec => (
+                  <p key={rec.name} style={styles.itemRecsText}>
+                    <strong>{rec.name}:</strong> {rec.details}
+                  </p>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
