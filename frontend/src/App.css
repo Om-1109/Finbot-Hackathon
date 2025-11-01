@@ -1,0 +1,30 @@
+/* Senior Dev Note:
+  We are gutting this file. 
+  
+  All component-specific styles (like .chat-app, .chat-messages) 
+  will be removed from here and moved into their respective 
+  components using Emotion's styled-components pattern.
+  
+  We'll only keep the custom scrollbar we wrote, as it's a good
+  pseudo-element to keep global.
+*/
+
+/* Custom Scrollbar
+  This adds a ton of polish.
+*/
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0D1117; /* Base background */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363D; /* Border color */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8B949E; /* Text secondary */
+}
+

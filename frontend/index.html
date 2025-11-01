@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinBot | AI Portfolio Advisor</title>
+
+    <!-- 
+      Senior Dev Note: 
+      Swapping to 'Poppins' as requested in the new prompt.
+      We'll get 'Inter' as a fallback.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+    
+    <style>
+      /* Senior Dev Note: 
+        Minimal global styles. We'll set the base font and 
+        background color here to prevent any "flash" of 
+        unstyled content. Emotion will handle the rest.
+      */
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      
+      html, body {
+        /* This is our "Deep Space Blue/Charcoal" */
+        background-color: #0D1117; 
+        
+        /* This is our default light gray text color */
+        color: #E6EDF3;
+        
+        /* Set Poppins as the primary, Inter as fallback */
+        font-family: 'Poppins', 'Inter', sans-serif;
+        
+        /* Smoother text rendering */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        
+        /* Ensure we are always full-height */
+        height: 100%;
+      }
+      
+      #root {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
