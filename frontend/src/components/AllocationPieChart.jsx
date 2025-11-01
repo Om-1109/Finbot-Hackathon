@@ -1,54 +1,100 @@
-import React from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+    import React from 'react';
+    import styled from '@emotion/styled';
+    import { Doughnut } from 'react-chartjs-2';
+    import {
+    Chart as ChartJS,
+    ArcElement,
+    Tooltip,
+    Legend,
+    } from 'chart.js';
+    import { theme } from '../theme'; // Import our theme
 
-// Define some consistent colors for your asset classes
-// This ensures your chart looks professional and consistent
-const COLORS = {
-  "Direct Equity": "#0088FE",
-  "Equity Funds": "#00C49F",
-  "Debt Instruments": "#FFBB28",
-  "Gold": "#FF8042",
-  "Default": "#8884d8" // Fallback color
-};
+    // --- REQUIRED: Register Chart.js modules ---
+    ChartJS.register(ArcElement, Tooltip, Legend);
 
-// This component is "dumb" and reusable.
-// It just takes data and plots it.
-export default function AllocationPieChart({ allocationData }) {
+    // --- Styled Components ---
 
-  // Helper to format currency in the Tooltip
-  const formatTooltip = (value) => `₹${value.toLocaleString('en-IN')}`;
+    const ChartContainer = styled.div`
+    position: relative;
+    width: 100%;
+    max-width: 300px;
+    margin: 1.5rem auto;
+    `;
 
-  // This reformats the data for the pie chart
-  const pieChartData = allocationData.map(item => ({
-    name: item.asset_class,
-    value: item.amount,
-    percentage: item.percentage
-  }));
+    // This component uses CSS to overlay text in the center
+    const CenterText = styled.div`
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: ${theme.colors.text};
+    
+    span {
+        display: block;
+        font-size: 0.9rem;
+        color: ${theme.colors.textSecondary};
+    }
+    
+    h3 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: ${theme.colors.primary};
+        margin: 0;
+    }
+    `;
 
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie
-          data={pieChartData}
-          dataKey="value"
-          nameKey="name"
-          cx="50%"
-          cy="50%"
-          outerRadius="80%"
-          fill="#8884d8"
-          // Show the percentage as the label on the chart
-          label={(entry) => `${(entry.percentage * 100).toFixed(0)}%`}
-        >
-          {pieChartData.map((entry, index) => (
-            <Cell 
-              key={`cell-${index}`} 
-              fill={COLORS[entry.name] || COLORS.Default} 
-            />
-          ))}
-        </Pie>
-        <Tooltip formatter={formatTooltip} />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
+    // --- Component ---
+
+    export const AllocationPieChart = ({ allocationData, projectedReturn }) => {
+    // Transform our data prop into the format Chart.js expects
+    const chartData = {
+        labels: allocationData.map(item => item.type),
+        datasets: [
+        {
+            data: allocationData.map(item => item.percentage),
+            // Use our theme colors for the chart!
+            backgroundColor: [
+            theme.colors.primary,
+            '#00E676', // A secondary green
+            '#00C4FF', // A secondary blue
+            '#FFC400', // A yellow
+            ],
+            borderColor: theme.colors.surface,
+            borderWidth: 3,
+            hoverOffset: 8,
+        },
+        ],
+    };
+
+    const chartOptions = {
+        responsive: true,
+        cutout: '70%', // This makes it a "Doughnut"
+        plugins: {
+        legend: {
+            display: false, // We'll show the legend in our accordion
+        },
+        tooltip: {
+            enabled: true,
+        },
+        },
+        // This is the "draw-in" animation from your prompt
+        animation: {
+        animateScale: true,
+        animateRotate: true,
+        duration: 1000,
+        },
+    };
+
+    return (
+        <ChartContainer>
+        <CenterText>
+            <span>Return Est.</span>
+            <h3>{projectedReturn}</h3>
+        </CenterText>
+        <Doughnut data={chartData} options={chartOptions} />
+        </ChartContainer>
+    );
+    };
+
+
