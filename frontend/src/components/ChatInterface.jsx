@@ -8,7 +8,7 @@ import { useChat } from '../hooks/useChat';
 import { theme } from '../theme'; 
 import { ChatInput } from './ChatInput'; 
 import { TypingIndicator } from './TypingIndicator'; 
-import { PortfolioDisplay } from './PortfolioDisplay'; 
+import PortfolioDisplay from './PortfolioDisplay'; 
 
 // --- Styled Components ---
 

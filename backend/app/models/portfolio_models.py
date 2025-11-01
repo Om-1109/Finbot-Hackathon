@@ -2,12 +2,11 @@ from pydantic import BaseModel, Field
 from typing import List, Literal
 
 # --- ASSUMED EXISTING MODELS ---
-# (I am including these so the file is complete and runs)
+# (I am including these so the file is complete)
 
 class PortfolioRequest(BaseModel):
     capital: int = Field(..., gt=0, description="Total capital amount to invest (e.g., 100000)")
     monthly_investment: int = Field(..., ge=0, description="Additional monthly investment (e.g., 5000)")
-    # Assuming 'preferred_tools' is still part of your request model
     preferred_tools: List[str] = Field(..., description="List of preferred tools (e.g., ['stocks', 'gold'])")
     risk_appetite: Literal["low", "medium", "high"] = Field(..., description="User's risk tolerance")
 

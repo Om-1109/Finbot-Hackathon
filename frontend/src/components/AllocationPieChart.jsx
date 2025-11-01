@@ -2,7 +2,7 @@ import React from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Define some consistent colors for your asset classes
-// This ensures your chart looks professional and consistent
+// This ensures your chart looks professional
 const COLORS = {
   "Direct Equity": "#0088FE",
   "Equity Funds": "#00C49F",
@@ -11,14 +11,16 @@ const COLORS = {
   "Default": "#8884d8" // Fallback color
 };
 
+// Helper to format currency in the Tooltip
+const formatTooltip = (value) => `₹${value.toLocaleString('en-IN')}`;
+
 // This component is "dumb" and reusable.
 // It just takes data and plots it.
 export default function AllocationPieChart({ allocationData }) {
 
-  // Helper to format currency in the Tooltip
-  const formatTooltip = (value) => `₹${value.toLocaleString('en-IN')}`;
-
   // This reformats the data for the pie chart
+  // The 'name' key is used by Recharts for labels
+  // The 'value' key is used by Recharts for the pie slices
   const pieChartData = allocationData.map(item => ({
     name: item.asset_class,
     value: item.amount,
@@ -37,7 +39,8 @@ export default function AllocationPieChart({ allocationData }) {
           outerRadius="80%"
           fill="#8884d8"
           // Show the percentage as the label on the chart
-          label={(entry) => `${(entry.percentage * 100).toFixed(0)}%`}
+          labelLine={false}
+          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
         >
           {pieChartData.map((entry, index) => (
             <Cell 
